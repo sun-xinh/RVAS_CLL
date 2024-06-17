@@ -1,0 +1,363 @@
+---
+title: "subgroup"
+author: "Xinhao Sun"
+date: "2024-05-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+```
+
+```{r}
+custom_colors <- c("#930E14","#F8D5E4", "#96D1C6", "#EE7D6B", "#BAD65D", "#C8C1DE")
+plot_df <- read.delim("embedding.tsv")
+colnames(plot_df)[1:3] <- c("sample","x","y")
+weird_sample <- c(
+  "DFCI-017P-C", "DFCI-049P-C", "DFCI-154P-C", "DFCI-320X-C", "DFCI-321X-C",
+  "DFCI-359P-C", "DFCI-385P-C", "DFCI-392P-C", "DFCI-442X-C", "DFCI-479B-C",
+  "DFCI-485P-C", "DFCI-507P-C", "DFCI-517P-C", "DFCI-568R-C"
+)
+
+ggplot(plot_df, aes(x, y))+
+  geom_point(aes(color=Superpopulation.code)) + 
+  scale_color_manual(values = custom_colors) +
+  ggtitle("Continental Ancestry UMAP")+
+  geom_point(data=plot_df[plot_df$sample %in% weird_sample, ], aes(x,y))+
+  geom_text_repel(data=plot_df[plot_df$sample %in% weird_sample, ],aes(x,y, label = sample),color="black")+ 
+  theme_bw()
+
+ggsave(filename = "~/Downloads/continental_ancestry_Umap.png", width = 28, height = 26, units = "in", dpi = 500)
+
+```
+
+# group by cluster
+```{r}
+eas_df <- plot_df %>%
+  filter(x > -10 & x < 0 & y > 0 & y < 10)
+sas_df <- plot_df %>% filter(x>0 & x<5 & y>10)
+afr_df <- plot_df %>% filter(x>17)
+eur1 <- plot_df %>% filter(x>5 & x<10 & -3< y & y<10)
+eur2 <- plot_df %>% filter(10<x & x<15 & y>10)
+eur_df <- rbind(eur1, eur2)
+amr_df <- plot_df %>% filter(y< -2)
+```
+
+
+```{r}
+table(eas_df$Superpopulation.code)
+table(sas_df$Superpopulation.code)
+table(afr_df$Superpopulation.code)
+table(eur_df$Superpopulation.code)
+table(amr_df$Superpopulation.code)
+
+labeled_df <- list(eas_df, sas_df, afr_df, eur_df, amr_df)
+
+labeled_num <- sum(sapply(labeled_df, nrow))
+labeled_num
+data.frame(Labeled_Sample = labeled_num, Unlabeled_Sample = nrow(plot_df) - labeled_num )
+unlabeled_df <- plot_df %>% filter(0<x & x<5 & 0< y & y<5)
+nrow(unlabeled_df)
+```
+
+# plot
+```{r}
+eas_df %>%
+  ggplot(aes(x,y)) +
+  geom_point(color=custom_colors[3],aes( shape = Population.code))+ theme_bw() +
+  ggtitle("Zoom in East Asian ancerstry UMAP")
+
+amr_df[amr_df$Population.code != "our samples", ] %>%
+  ggplot(aes(x,y, color = Superpopulation.code)) +
+  geom_point(aes( shape = Population.code)) +
+  scale_color_manual(values = custom_colors[1:2]) +
+  geom_point(data=amr_df[amr_df$Population.code == "our samples", ],aes(x,y),color="black")+ 
+  geom_text(data=amr_df[amr_df$Population.code == "our samples", ],aes(x,y, label = sample),position=position_dodge(width = 1),color="black")+ 
+  ggtitle("Zoom in American ancerstry UMAP") +
+  theme_bw()
+
+
+afr_df[afr_df$Population.code != "our samples", ] %>%
+  ggplot(aes(x,y, color = Superpopulation.code)) +
+  geom_point(aes( shape = Population.code)) +
+  scale_color_manual(values = custom_colors[1:2]) +
+  scale_shape_manual(values=1:8) +
+  geom_point(data=afr_df[afr_df$Population.code == "our samples", ],aes(x,y),color="black")+ 
+  geom_text_repel(data=afr_df[afr_df$Population.code == "our samples", ],aes(x,y, label = sample),position=position_dodge(width = 1),color="black")+ 
+  ggtitle("Zoom in African ancerstry UMAP") +
+  theme_bw()
+
+sas_df[sas_df$Population.code != "our samples", ] %>%
+  ggplot(aes(x,y, colour = Superpopulation.code)) +
+  geom_point(color=custom_colors[6],aes( shape = Population.code)) +
+  geom_point(data=sas_df[sas_df$Population.code == "our samples", ],aes(x,y),color="black")+ 
+  geom_text(data=sas_df[sas_df$Population.code == "our samples", ],aes(x,y, label = sample),position=position_dodge(width = 1),color="black")+ 
+  ggtitle("Zoom in South Asian ancerstry UMAP") +
+  theme_bw()
+```
+
+# re-group european ancestry
+```{r}
+group_1 <- "FIN"
+group_2 <- c("CEU", "GBR")
+group_3 <- c("IBS", "TSI")
+group_4 <- "our samples"
+
+
+eur_df <- eur_df %>%
+  mutate(Group = case_when(
+    Population.code %in% group_1 ~ "FIN",
+    Population.code %in% group_2 ~ "Group 1",
+    Population.code %in% group_3 ~ "Group 2",
+    Population.code == group_4 ~ "our samples",
+    TRUE ~ "American"
+  ))
+```
+
+
+```{r}
+library(ggrepel)
+
+mid_samples <- c("DFCI-099X-C",
+                  "DFCI-359P-C",
+                  #"DFCI-362P-C",
+                  "DFCI-372X-C",
+                  "DFCI-385P-C",
+                  "DFCI-416P-C",
+                  "DFCI-442X-C",
+                  "DFCI-517P-C")
+
+
+
+eur_df[eur_df$Group != "our samples", ] %>%
+  ggplot(aes(x,y,color= Group, alpha = 0.6)) +
+  geom_point()+ 
+  geom_point(data=eur_df[eur_df$Group == "our samples", ],aes(x,y),shape=2, alpha = 1)+ 
+  geom_point(data=eur_df[eur_df$sample %in% mid_samples, ], aes(x,y), color= "black")+
+  geom_text_repel(data=eur2[eur2$Population.code == "our samples", ],aes(x,y, label = sample),color="black")+ 
+  ggtitle("Zoom in European ancerstry UMAP") +
+  theme_bw()
+```
+
+
+```{r}
+asj_df <- read.delim("/Users/sunxinhao/Downloads/asj_df.tsv")
+dim(asj_df)
+```
+
+
+```{r}
+intersect(asj_df$s, unlabeled_df$sample)
+setdiff(asj_df$s, unlabeled_df$sample)
+setdiff(unlabeled_df$sample,asj_df$s)
+
+unlabeled_df %>%
+  ggplot(aes(x,y)) +
+  geom_point(colour = "black")+
+  geom_point(data=unlabeled_df[unlabeled_df$sample %in% asj_df$s, ],aes(x,y),color="#BAD65D")+ 
+  geom_text(data=unlabeled_df[!unlabeled_df$sample %in% asj_df$s, ],aes(x,y, label = sample),position=position_dodge(width = 1),color="black")+ 
+  ggtitle("Zoom in ASJ ancerstry UMAP with black points as non-fin European") +
+  theme_bw()
+```
+
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+pca_v3 <- read.delim("~/Downloads/v3_pca.tsv")
+pca_v4 <- read.delim("~/Downloads/v4_pca.tsv")
+```
+
+```{r}
+convert_to_numeric <- function(scores_str) {
+  scores_str <- gsub("\\[|\\]", "", scores_str)  # Remove square brackets
+  scores_list <- strsplit(scores_str, ",")[[1]]  # Split by comma
+  as.numeric(scores_list)  # Convert to numeric
+}
+
+# Apply the function to the scores column and expand into separate columns
+data <- pca_v3 %>%
+  dplyr::mutate(scores = lapply(scores, convert_to_numeric)) %>%
+  tidyr::unnest_wider(scores, names_sep = "_")
+```
+
+```{r}
+ggplot(data, aes(scores_1, scores_2)) + geom_point()
+```
+
+```{r}
+data2 <- pca_v4 %>%
+  dplyr::mutate(scores = lapply(scores, convert_to_numeric)) %>%
+  tidyr::unnest_wider(scores, names_sep = "_")
+ggplot(data2, aes(scores_1, scores_2)) + geom_point()
+```
+
+
+
+```{r}
+pro_df <- read.delim("~/Downloads/ancestry_pro.tsv")
+
+```
+
+```{r}
+
+thre_df <- data.frame(
+  threshold = c(0.3, 0.4, 0.5, 0.6, 0.7),
+  afr = c(1, 1, 1, 1, 1),
+  amr = c(3, 3, 3, 3, 2),
+  asj = c(70, 70, 69, 68, 62),
+  mid = c(7, 7, 6, 3, 2),
+  nfe = c(252, 249, 197, 52, 5),
+  sas = c(1, 1, 1, 1, 1),
+  oth = c(0, 3, 57, 206, 261)
+)
+
+```
+
+```{r}
+library(tidyr)
+library(ggplot2)
+
+# Transform the data frame to long format
+thre_long <- thre_df %>%
+  pivot_longer(cols = -threshold, names_to = "group", values_to = "count")
+
+
+# Create the bar plot
+ggplot(thre_long, aes(x = factor(threshold), y = count, fill = group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Threshold", y = "Count", fill = "Group") +
+  ggtitle("Distribution of Groups at Different Thresholds") +
+  theme_minimal()
+
+ggplot(thre_long, aes(x = group, y = count, fill = factor(threshold))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Group", y = "Count", fill = "Threshold") +
+  ggtitle("Distribution of Groups at Different Thresholds") +
+  theme_bw()
+
+ggplot(thre_long, aes(x = factor(threshold), y = count, fill = group)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Threshold", y = "Count", fill = "Group") +
+  ggtitle("Distribution of Groups at Different Thresholds") +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired")
+
+ggsave(filename = "~/Downloads/ancestry_stackedbar.png", width = 8, height = 6, units = "in", dpi = 500)
+```
+
+## UMAP
+
+
+```{r}
+#install.packages("umap")
+library(umap)
+library(plotly)
+
+new_df <- read.csv("~/Downloads/PCscores_with_asj.csv")
+PCs = new_df[, grep("PC", colnames(new_df))] 
+PCs.umap = umap(PCs, n_components = 2) 
+layout <- PCs.umap[["layout"]] %>% data.frame()
+final <- cbind(layout, new_df[,c("s","continental_ancestry","subcontinental_ancestry")]) 
+colnames(final) <- c('X', 'Y', "sample", 'continental', "subcont") 
+
+final %>%
+  ggplot(aes(x = X, 
+             y = Y, 
+             color = continental))+
+  geom_point()
+```
+
+```{r}
+## UMAP
+
+#install.packages("umap")
+
+fig <- plot_ly(final, x = ~X, y = ~Y, split = ~continental,  type = 'scatter', mode = 'markers')%>%  
+  layout(  
+    plot_bgcolor = "#e5ecf6",
+    legend=list(title=list(text='digit')), 
+    xaxis = list( 
+      title = "0"),  
+    yaxis = list( 
+      title = "1")) 
+fig
+
+
+
+```
+
+
+```{r}
+eur_df <- final %>% filter(continental=="EUR")
+plot_ly(eur_df, x = ~X, y = ~Y, split = ~subcont,  type = 'scatter', mode = 'markers')
+
+eur_df_s <- final %>%
+  dplyr::filter(-18<X & X< 2 & -9<Y & Y< -2 )
+
+plot_ly(eur_df_s, x = ~X, y = ~Y, split = ~subcont,  type = 'scatter', mode = 'markers')
+
+```
+
+```{r}
+continental_color <- c("brown","purple","orange")
+eur_df_s %>%
+  filter(continental != "sample") %>%
+  ggplot(aes(x = X, 
+             y = Y, 
+             color = continental, shape = subcont))+
+  geom_point() +
+  scale_shape_manual(values=1:18) +
+  scale_color_manual(values = continental_color) +
+  geom_point(data=eur_df_s[eur_df_s$continental == "sample", ],aes(X,Y),color="grey")+ 
+  theme_minimal()
+```
+
+
+```{r}
+north_eur <- c("GBR", "CEU", "Orcadian")
+south_eur <- c("Basque", "BergamoItalian", "Tuscan", "IBS","TSI","PUR")
+american <- c("MXL", "CLM")
+unique(eur_df_s$subcont)
+
+shape_values <- c("GBR" = 1, "CEU" = 2, "Orcadian" = 3,
+                  "Basque" = 1, "BergamoItalian" = 2, "Tuscan" = 3, "IBS" = 4, "TSI" = 5, "PUR" = 6, 
+                  "MXL" = 1, "CLM" = 2,
+                  "ASJ" = 1, "FIN" = 2, "French" = 3, "Sardinian" = 4, "Russian" = 6, 
+                  "Adygei" = 7, "sample"= 11)
+
+eur_df_s <- eur_df_s %>%
+  mutate(group = case_when(
+    subcont %in% north_eur ~ "North Europe",
+    subcont %in% south_eur ~ "South Europe",
+    subcont %in% american ~ "American",
+    TRUE ~ subcont  # Keep the same for other values
+  ))
+unique(eur_df_s$group)
+```
+
+```{r}
+
+eur_df_s %>%
+  filter(continental != "sample") %>%
+  ggplot(aes(x = X, 
+             y = Y, 
+             shape=subcont,
+             color = group,
+             ))+
+  geom_point() +
+  #scale_shape_manual(values = shape_values) +
+  geom_point(data=eur_df_s[eur_df_s$continental == "sample", ],aes(X,Y),color="grey", alpha = 0.5)+ 
+  theme_minimal()
+
+plot_ly(eur_df_s, x = ~X, y = ~Y, split = ~subcont, color = ~group, type = 'scatter', mode = 'markers')
+
+
+```
